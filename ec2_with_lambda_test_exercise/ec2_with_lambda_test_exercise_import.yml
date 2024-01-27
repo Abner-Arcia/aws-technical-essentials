@@ -1,0 +1,184 @@
+Parameters:
+  KeyPairNameParameter:
+    Type: String
+    Description: The name of a previously created EC2 key pair
+  DeploymentPackageBucketNameParameter:
+    Type: String
+    Description: The name of the deployment package bucket
+  DeploymentPackageNameParameter:
+    Type: String
+    Description: The name of the deployment package file
+
+Resources:
+  TestInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      AvailabilityZone: "us-east-1a"
+      ImageId: "ami-079db87dc4c10ac91"
+      InstanceType: "t2.micro"
+      KeyName:
+        Ref: KeyPairNameParameter
+      Tags:
+        - Key: "Name"
+          Value: "abner-test-instance"
+        - Key: "Project"
+          Value: "uat"
+  ProdInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      AvailabilityZone: "us-east-1a"
+      ImageId: "ami-079db87dc4c10ac91"
+      InstanceType: "t2.micro"
+      KeyName:
+        Ref: KeyPairNameParameter
+      Tags:
+        - Key: "Name"
+          Value: "abner-prod-instance"
+        - Key: "Project"
+          Value: "prod"
+  LambdaEC2Policy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: "Allows the start and stop of EC2 instances as well as writing CloudWatch logs"
+      ManagedPolicyName:
+        Fn::Join:
+          - "-"
+          - - Ref: AWS::Region
+            - "lambda-ec2-policy"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: LambdaEC21
+            Effect: Allow
+            Action:
+              - "ec2:DescribeInstances"
+              - "ec2:Start*"
+              - "ec2:Stop*"
+              - "ec2:DescribeInstanceStatus"
+            Resource: "*"
+          - Sid: LambdaEC22
+            Effect: Allow
+            Action:
+              - "logs:CreateLogStream"
+              - "logs:CreateLogGroup"
+              - "logs:PutLogEvents"
+            Resource: "*"
+  LambdaEC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "lambda.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Description: "Role for EC2 access from a Lambda function"
+      ManagedPolicyArns:
+        - Ref: LambdaEC2Policy
+      RoleName: "lambda-ec2-role"
+      Tags:
+        - Key: "Name"
+          Value: "lambda-ec2-role"
+  EC2StartEventPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: "lambda:InvokeFunction"
+      # EventSourceToken: String
+      FunctionName:
+        Fn::GetAtt: ["LambdaEC2StartStopFunction", "Arn"]
+      # FunctionUrlAuthType: String
+      Principal: "events.amazonaws.com"
+      # PrincipalOrgID: String
+      # SourceAccount: String
+      SourceArn:
+        Fn::GetAtt: ["EC2StartEvent", "Arn"]
+  EC2StopEventPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: "lambda:InvokeFunction"
+      FunctionName:
+        Fn::GetAtt: ["LambdaEC2StartStopFunction", "Arn"]
+      Principal: "events.amazonaws.com"
+      SourceArn:
+        Fn::GetAtt: ["EC2StopEvent", "Arn"]
+  LambdaEC2StartStopFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Architectures:
+        - "x86_64"
+      Code:
+        S3Bucket:
+          Ref: DeploymentPackageBucketNameParameter
+        S3Key:
+          Ref: DeploymentPackageNameParameter
+      Description: "Starts or stops EC2 instances"
+      Environment:
+        Variables:
+          DEFAULT_TAGS: "tag:Project=uat"
+          LOG_LEVEL: "INFO"
+      FunctionName: "lambda-ec2-start-stop-function"
+      Handler: "lambda_function.lambda_handler"
+      PackageType: "Zip"
+      Role:
+        Fn::GetAtt: ["LambdaEC2Role", "Arn"]
+      Runtime: "python3.9"
+      Tags:
+        - Key: "Name"
+          Value: "lambda-ec2-start-stop-function"
+      Timeout: 10
+  EC2StartEvent:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "The event to start the EC2 instances"
+      Name: "ec2-start-event"
+      ScheduleExpression: "cron(*/10 * * * ? *)"
+      State: "ENABLED"
+      Targets:
+        - Arn:
+            Fn::GetAtt: ["LambdaEC2StartStopFunction", "Arn"]
+          Id: "ec2-start-event"
+          Input: |
+            {
+              "action": "start"
+            }
+  EC2StopEvent:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "The event to stop the EC2 instances"
+      Name: "ec2-stop-event"
+      ScheduleExpression: "cron(5-59/10 * * * ? *)"
+      State: "ENABLED"
+      Targets:
+        - Arn:
+            Fn::GetAtt: ["LambdaEC2StartStopFunction", "Arn"]
+          Id: "ec2-stop-event"
+          Input: |
+            {
+              "action": "stop"
+            }
+
+  DeploymentPackageBucket:
+    Type: "AWS::S3::Bucket"
+    DeletionPolicy: "Retain"
+    Properties:
+      BucketName:
+        Ref: DeploymentPackageBucketNameParameter
+      Tags:
+        - Key: "Name"
+          Value:
+            Ref: DeploymentPackageBucketNameParameter
+  KeyPair:
+    Type: AWS::EC2::KeyPair
+    DeletionPolicy: "Delete"
+    Properties:
+      KeyFormat: "pem"
+      KeyName:
+        Ref: KeyPairNameParameter
+      KeyType: "rsa"
+      Tags: 
+        - Key: "Name"
+          Value:
+            Ref: KeyPairNameParameter

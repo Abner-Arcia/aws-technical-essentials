@@ -1,0 +1,199 @@
+Resources:
+  StaticBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      # AccelerateConfiguration: 
+      #   AccelerateConfiguration
+      # AccessControl: String
+      # AnalyticsConfigurations: 
+      #   - AnalyticsConfiguration
+      # BucketEncryption: 
+      #   BucketEncryption
+      BucketName: 'abnerarcia-vegan-product-launch'
+      # CorsConfiguration: 
+      #   CorsConfiguration
+      # IntelligentTieringConfigurations: 
+      #   - IntelligentTieringConfiguration
+      # InventoryConfigurations: 
+      #   - InventoryConfiguration
+      # LifecycleConfiguration: 
+      #   LifecycleConfiguration
+      # LoggingConfiguration: 
+      #   LoggingConfiguration
+      # MetricsConfigurations: 
+      #   - MetricsConfiguration
+      # NotificationConfiguration: 
+      #   NotificationConfiguration
+      # ObjectLockConfiguration: 
+      #   ObjectLockConfiguration
+      # ObjectLockEnabled: Boolean
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: 'BucketOwnerEnforced'
+      PublicAccessBlockConfiguration: 
+        BlockPublicAcls: True
+        BlockPublicPolicy: False
+        IgnorePublicAcls: True
+        RestrictPublicBuckets: False
+      # ReplicationConfiguration: 
+      #   ReplicationConfiguration
+      Tags: 
+        - Key: 'name'
+          Value: 'vegan-product-launch'
+        - Key: 'app-name'
+          Value: 'vegan-studio'
+      # VersioningConfiguration: 
+      #   VersioningConfiguration
+      WebsiteConfiguration: 
+        ErrorDocument: 'error.html'
+        IndexDocument: 'index.html'
+        # RedirectAllRequestsTo:
+        #   RedirectAllRequestsTo
+        # RoutingRules: 
+        #   - RoutingRule
+  PublicAccessPolicy:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties:
+      Bucket:
+        Ref: 'StaticBucket'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal: '*'
+            Action: 's3:GetObject'
+            Resource:
+              Fn::Join:
+                - ''
+                - - 'arn:aws:s3:::'
+                  - Ref: 'StaticBucket'
+                  - '/*'
+  ReplicationSourceBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: 'abnerarcia-replication-source-test'
+      LifecycleConfiguration:
+        Rules:
+          - # AbortIncompleteMultipartUpload: 
+            #   AbortIncompleteMultipartUpload
+            # ExpirationDate: String
+            # ExpirationInDays: Integer
+            # ExpiredObjectDeleteMarker: Boolean
+            Id: 'StandardToIAToGlacier'
+            NoncurrentVersionExpiration: 
+            #   NewerNoncurrentVersions: 0
+              NoncurrentDays: 2555
+            # NoncurrentVersionExpirationInDays: Integer
+            # NoncurrentVersionTransition: 
+            #   NoncurrentVersionTransition
+            NoncurrentVersionTransitions: 
+              - # NewerNoncurrentVersions: 0
+                StorageClass: 'STANDARD_IA'
+                TransitionInDays: 30
+              - # NewerNoncurrentVersions: 0
+                StorageClass: 'GLACIER'
+                TransitionInDays: 180
+            # ObjectSizeGreaterThan: String
+            # ObjectSizeLessThan: String
+            # Prefix: String
+            Status: 'Enabled'
+            # TagFilters: 
+            #   - TagFilter
+            # Transition: 
+            #   Transition
+            Transitions: 
+              - StorageClass: 'STANDARD_IA'
+                # TransitionDate: String
+                TransitionInDays: 30
+      ReplicationConfiguration:
+        Role: !GetAtt
+          - ReplicationRole
+          - Arn
+        Rules: 
+          - # DeleteMarkerReplication: 
+            #   DeleteMarkerReplication
+            Destination: 
+              # AccessControlTranslation: 
+              #   AccessControlTranslation
+              # Account: String
+              Bucket: !Join
+                - ''
+                - - 'arn:aws:s3:::'
+                  - !Ref ReplicationTargetBucket
+              # EncryptionConfiguration: 
+              #   EncryptionConfiguration
+              # Metrics: 
+              #   Metrics
+              # ReplicationTime: 
+              #   ReplicationTime
+              StorageClass: 'STANDARD_IA'
+            # Filter: 
+            #   ReplicationRuleFilter
+            Id: 'veganstudio-recipes-source-to-destination'
+            # Prefix: String
+            # Priority: Integer
+            # SourceSelectionCriteria: 
+            #   SourceSelectionCriteria
+            Status: 'Enabled'
+      Tags: 
+        - Key: 'name'
+          Value: 'replication-source-test'
+      VersioningConfiguration: 
+        Status: 'Enabled'
+  ReplicationTargetBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: 'abnerarcia-replication-target-test'
+      Tags: 
+        - Key: 'name'
+          Value: 'replication-target-test'
+      VersioningConfiguration: 
+        Status: 'Enabled'
+  ReplicationRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - 'sts:AssumeRole'
+            Effect: 'Allow'
+            Principal:
+              Service:
+                - 's3.amazonaws.com'
+  ReplicationPolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - 's3:GetReplicationConfiguration'
+              - 's3:ListBucket'
+            Effect: 'Allow'
+            Resource:
+              - !Join
+                - ''
+                - - 'arn:aws:s3:::'
+                  - !Ref ReplicationSourceBucket
+          - Action:
+              - 's3:GetObjectVersion'
+              - 's3:GetObjectVersionAcl'
+            Effect: 'Allow'
+            Resource:
+              - !Join
+                - ''
+                - - 'arn:aws:s3:::'
+                  - !Ref ReplicationSourceBucket
+                  - /*
+          - Action:
+              - 's3:ReplicateObject'
+              - 's3:ReplicateDelete'
+            Effect: 'Allow'
+            Resource:
+              - !Join
+                - ''
+                - - 'arn:aws:s3:::'
+                  - !Ref ReplicationTargetBucket
+                  - /*
+      PolicyName: 'ReplicationPolicy'
+      Roles:
+        - !Ref ReplicationRole

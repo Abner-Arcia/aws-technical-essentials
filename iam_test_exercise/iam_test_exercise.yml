@@ -1,0 +1,49 @@
+Resources:
+  TestUser:
+    Type: AWS::IAM::User
+    Properties:
+      Groups:
+        - Ref: TestGroup
+      LoginProfile:
+        Password: test-password-1
+        PasswordResetRequired: True
+    #  ManagedPolicyArns: 
+    #    - String
+    #  Path: String
+    #  PermissionsBoundary: String
+    #  Policies: 
+    #    - Policy
+      Tags:
+        - Key: test-key
+          Value: test-value
+      UserName: test-abner
+  TestGroup:
+    Type: AWS::IAM::Group
+    Properties:
+      GroupName: test-admins
+      ManagedPolicyArns:
+        - Ref: TestPolicy
+      # Path: String
+      # Policies: 
+      #   - Policy
+  TestPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Allow access to all services and all resources
+      # Groups:
+      #   - String
+      ManagedPolicyName: test-admin-access
+      # Path: String
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          -
+            Sid: AllowAdminAccess1
+            Effect: Allow
+            Action:
+              - "*"
+            Resource: "*"
+      # Roles:
+      #   - String
+      # Users:
+      #   - String

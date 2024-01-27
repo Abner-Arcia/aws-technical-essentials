@@ -1,0 +1,439 @@
+Parameters:
+  KeyPairNameParameter:
+    Type: String
+    Description: The name of a previously created EC2 key pair
+  WebContentBucketNameParameter:
+    Type: String
+    Description: The name of the web content bucket
+
+Resources:
+  EC2ToS3InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: "EC2ToS3FullAccess"
+      Roles:
+        - Ref: EC2ToS3Role
+  EC2ToS3Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "ec2.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Description: "Role for EC2 to S3 full access"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+      RoleName: "EC2ToS3FullAccess"
+      Tags:
+        - Key: "Name"
+          Value: "EC2ToS3FullAccess"
+  WebServerVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: "10.0.0.0/16"
+      Tags:
+        - Key: "Name"
+          Value: "abner-web-server-vpc"
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: "Name"
+          Value: "abner-igw"
+  GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId:
+        Ref: InternetGateway
+      VpcId:
+        Ref: WebServerVPC
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: "us-east-1a"
+      CidrBlock: "10.0.1.0/24"
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: "Name"
+          Value: "abner-public-subnet-1"
+      VpcId:
+        Ref: WebServerVPC
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: "us-east-1b"
+      CidrBlock: "10.0.2.0/24"
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: "Name"
+          Value: "abner-public-subnet-2"
+      VpcId:
+        Ref: WebServerVPC
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      Tags:
+        - Key: "Name"
+          Value: "abner-public-rt"
+      VpcId:
+        Ref: WebServerVPC
+  RouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        Ref: PublicRouteTable
+      SubnetId:
+        Ref: PublicSubnet1
+  RouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        Ref: PublicRouteTable
+      SubnetId:
+        Ref: PublicSubnet2
+  InternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId:
+        Ref: InternetGateway
+      RouteTableId:
+        Ref: PublicRouteTable
+  WebServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "SG for a web server"
+      GroupName: "abner-web-server-sg"
+      SecurityGroupIngress:
+        - CidrIp: "0.0.0.0/0"
+          Description: "Allow HTTP traffic"
+          FromPort: 80
+          IpProtocol: "tcp"
+          ToPort: 80
+        - CidrIp: "0.0.0.0/0"
+          Description: "Allow SSH traffic"
+          FromPort: 22
+          IpProtocol: "tcp"
+          ToPort: 22
+      Tags:
+        - Key: "Name"
+          Value: "abner-web-server-sg"
+      VpcId:
+        Ref: WebServerVPC
+  NetworkACL:
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+      Tags:
+        - Key: "Name"
+          Value: "abner-network-acl"
+      VpcId:
+        Ref: WebServerVPC
+  HTTPInboundRule:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: "0.0.0.0/0"
+      Egress: false
+      NetworkAclId:
+        Ref: NetworkACL
+      PortRange:
+        From: 80
+        To: 80
+      Protocol: 6 # TCP
+      RuleAction: "allow"
+      RuleNumber: 100
+  HTTPSInboundRule:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: "0.0.0.0/0"
+      Egress: false
+      NetworkAclId:
+        Ref: NetworkACL
+      PortRange:
+        From: 443
+        To: 443
+      Protocol: 6 # TCP
+      RuleAction: "allow"
+      RuleNumber: 200
+  EphemeralPortsInboundRule:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: "0.0.0.0/0"
+      Egress: false
+      NetworkAclId:
+        Ref: NetworkACL
+      PortRange:
+        From: 1024
+        To: 65535
+      Protocol: 6 # TCP
+      RuleAction: "allow"
+      RuleNumber: 300
+  SSHInboundRule:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: "0.0.0.0/0"
+      Egress: false
+      NetworkAclId:
+        Ref: NetworkACL
+      PortRange:
+        From: 22
+        To: 22
+      Protocol: 6 # TCP
+      RuleAction: "allow"
+      RuleNumber: 400
+  HTTPOutboundRule:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: "0.0.0.0/0"
+      Egress: true
+      NetworkAclId:
+        Ref: NetworkACL
+      PortRange:
+        From: 80
+        To: 80
+      Protocol: 6 # TCP
+      RuleAction: "allow"
+      RuleNumber: 100
+  HTTPSOutboundRule:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: "0.0.0.0/0"
+      Egress: true
+      NetworkAclId:
+        Ref: NetworkACL
+      PortRange:
+        From: 443
+        To: 443
+      Protocol: 6 # TCP
+      RuleAction: "allow"
+      RuleNumber: 200
+  EphemeralPortsOutboundRule:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: "0.0.0.0/0"
+      Egress: true
+      NetworkAclId:
+        Ref: NetworkACL
+      PortRange:
+        From: 1024
+        To: 65535
+      Protocol: 6 # TCP
+      RuleAction: "allow"
+      RuleNumber: 300
+  SSHOutboundRule:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: "0.0.0.0/0"
+      Egress: true
+      NetworkAclId:
+        Ref: NetworkACL
+      PortRange:
+        From: 22
+        To: 22
+      Protocol: 6 # TCP
+      RuleAction: "allow"
+      RuleNumber: 400
+  SubnetNetworkACLAssociation1:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      NetworkAclId:
+        Ref: NetworkACL
+      SubnetId:
+        Ref: PublicSubnet1
+  SubnetNetworkACLAssociation2:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      NetworkAclId:
+        Ref: NetworkACL
+      SubnetId:
+        Ref: PublicSubnet2
+  WebServerLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    DependsOn: GatewayAttachment
+    Properties:
+      IpAddressType: "ipv4"
+      Name: "abner-web-server-load-balancer"
+      Scheme: "internet-facing"
+      SecurityGroups:
+        - Ref: WebServerSecurityGroup
+      Subnets:
+        - Ref: PublicSubnet1
+        - Ref: PublicSubnet2
+      Tags:
+        - Key: "Name"
+          Value: "abner-web-server-load-balancer"
+      Type: "application"
+  HTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - TargetGroupArn:
+            Ref: WebServerTargetGroup
+          Type: "forward"
+      LoadBalancerArn:
+        Ref: WebServerLoadBalancer
+      Port: 80
+      Protocol: "HTTP"
+  WebServerTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckEnabled: true
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: "/health.html"
+      HealthCheckPort: "traffic-port"
+      HealthCheckProtocol: "HTTP"
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 3
+      IpAddressType: "ipv4"
+      Matcher:
+        HttpCode: 200
+      Name: "abner-web-server-target-group"
+      Port: 80
+      Protocol: "HTTP"
+      ProtocolVersion: "HTTP1"
+      Tags:
+        - Key: "Name"
+          Value: "abner-web-server-target-group"
+      TargetType: "instance"
+      UnhealthyThresholdCount: 2
+      VpcId:
+        Ref: WebServerVPC
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        # BlockDeviceMappings:
+        #   - BlockDeviceMapping
+        # CapacityReservationSpecification:
+        #   CapacityReservationSpecification
+        # CpuOptions:
+        #   CpuOptions
+        # CreditSpecification:
+        #   CreditSpecification
+        # DisableApiStop: Boolean
+        # DisableApiTermination: Boolean
+        # EbsOptimized: Boolean
+        # ElasticGpuSpecifications:
+        #   - ElasticGpuSpecification
+        # ElasticInferenceAccelerators:
+        #   - LaunchTemplateElasticInferenceAccelerator
+        # EnclaveOptions:
+        #   EnclaveOptions
+        # HibernationOptions:
+        #   HibernationOptions
+        IamInstanceProfile:
+          # Arn: String
+          Name:
+            Ref: EC2ToS3InstanceProfile
+        ImageId: "ami-00b8917ae86a424c9"
+        # InstanceInitiatedShutdownBehavior: String
+        # InstanceMarketOptions:
+        #   InstanceMarketOptions
+        # InstanceRequirements:
+        #   InstanceRequirements
+        InstanceType: "t2.micro"
+        # KernelId: String
+        KeyName:
+          Ref: KeyPairNameParameter
+        # LicenseSpecifications:
+        #   - LicenseSpecification
+        # MaintenanceOptions:
+        #   MaintenanceOptions
+        # MetadataOptions:
+        #   MetadataOptions
+        # Monitoring:
+        #   Monitoring
+        # NetworkInterfaces:
+        #   - NetworkInterface
+        # Placement:
+        #   Placement
+        # PrivateDnsNameOptions:
+        #   PrivateDnsNameOptions
+        # RamDiskId: String
+        SecurityGroupIds:
+          - Ref: WebServerSecurityGroup
+        # SecurityGroups:
+        #   - String
+        TagSpecifications:
+          - ResourceType: "instance"
+            Tags:
+              - Key: "Name"
+                Value: "abner-web-server"
+        UserData:
+          Fn::Base64:
+            Fn::Sub: |
+              #!/bin/bash
+              yum update -y
+              yum install -y httpd
+              systemctl start httpd
+              systemctl enable httpd
+              usermod -a -G apache ec2-user
+              chown -R ec2-user:apache /var/www
+              chmod 2775 /var/www
+              find /var/www -type d -exec chmod 2775 {} \;
+              find /var/www -type f -exec chmod 0664 {} \;
+              aws s3 cp s3://${WebContentBucketNameParameter}/index.html /var/www/html
+              aws s3 cp s3://${WebContentBucketNameParameter}/health.html /var/www/html
+      LaunchTemplateName: "abner-web-server-launch-template"
+      TagSpecifications:
+        - ResourceType: "launch-template"
+          Tags:
+            - Key: "Name"
+              Value: "abner-web-server-launch-template"
+      VersionDescription: "Launch web server instances"
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    DependsOn: GatewayAttachment
+    Properties:
+      AutoScalingGroupName: "abner-auto-scaling-group"
+      # AvailabilityZones:
+      #   - String
+      # CapacityRebalance: Boolean
+      # Context: String
+      # Cooldown: String
+      # DefaultInstanceWarmup: Integer
+      DesiredCapacity: 2
+      # DesiredCapacityType: String
+      HealthCheckGracePeriod: 300
+      HealthCheckType: "ELB"
+      # InstanceId: String
+      # InstanceMaintenancePolicy:
+      #   InstanceMaintenancePolicy
+      # LaunchConfigurationName: String
+      LaunchTemplate:
+        LaunchTemplateId:
+          Ref: LaunchTemplate
+        # LaunchTemplateName: String
+        Version:
+          Fn::GetAtt: ["LaunchTemplate", "LatestVersionNumber"]
+      # LifecycleHookSpecificationList:
+      #   - LifecycleHookSpecification
+      # LoadBalancerNames:
+      #   - String
+      # MaxInstanceLifetime: Integer
+      MaxSize: 2
+      # MetricsCollection:
+      #   - MetricsCollection
+      MinSize: 2
+      # MixedInstancesPolicy:
+      #   MixedInstancesPolicy
+      # NewInstancesProtectedFromScaleIn: Boolean
+      # NotificationConfigurations:
+      #   - NotificationConfiguration
+      # PlacementGroup: String
+      # ServiceLinkedRoleARN: String
+      Tags:
+        - Key: "Name"
+          PropagateAtLaunch: false
+          Value: "abner-auto-scaling-group"
+      TargetGroupARNs:
+        - Ref: WebServerTargetGroup
+      # TerminationPolicies:
+      #   - String
+      VPCZoneIdentifier:
+        - Ref: PublicSubnet1
+        - Ref: PublicSubnet2

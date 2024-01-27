@@ -1,0 +1,90 @@
+Resources:
+  RDSInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: "20"
+      AllowMajorVersionUpgrade: false
+      # AssociatedRoles:
+      #   - DBInstanceRole
+      # AutomaticBackupReplicationRegion: String
+      AutoMinorVersionUpgrade: true
+      AvailabilityZone: "us-east-1a"
+      BackupRetentionPeriod: 7
+      # CACertificateIdentifier: String
+      # CertificateDetails:
+      #   CertificateDetails
+      # CertificateRotationRestart: Boolean
+      # CharacterSetName: String
+      # CopyTagsToSnapshot: Boolean
+      # CustomIAMInstanceProfile: String
+      # DBClusterIdentifier: String
+      # DBClusterSnapshotIdentifier: String
+      DBInstanceClass: "db.t3.micro"
+      # DBInstanceIdentifier: String
+      DBName: "abnerMysqlDb"
+      # DBParameterGroupName: String
+      # DBSecurityGroups:
+      #   - String
+      # DBSnapshotIdentifier: String
+      # DBSubnetGroupName: String ------
+      # DBSystemId: String
+      # DedicatedLogVolume: Boolean
+      DeleteAutomatedBackups: true
+      # DeletionProtection: Boolean
+      # Domain: String
+      # DomainAuthSecretArn: String
+      # DomainDnsIps:
+      #   - String
+      # DomainFqdn: String
+      # DomainIAMRoleName: String
+      # DomainOu: String
+      # EnableCloudwatchLogsExports:
+      #   - String
+      # EnableIAMDatabaseAuthentication: Boolean
+      # EnablePerformanceInsights: Boolean
+      # Endpoint:
+      #   Endpoint
+      Engine: "mysql"
+      EngineVersion: "8.0.35"
+      # Iops: Integer
+      # KmsKeyId: String
+      # LicenseModel: String
+      # ManageMasterUserPassword: Boolean
+      MasterUsername: "abnerMaster"
+      MasterUserPassword: "abner-rds-123"
+      # MasterUserSecret:
+      #   MasterUserSecret
+      # MaxAllocatedStorage: Integer
+      # MonitoringInterval: Integer
+      # MonitoringRoleArn: String
+      # MultiAZ: Boolean
+      # NcharCharacterSetName: String
+      # NetworkType: String
+      # OptionGroupName: String
+      # PerformanceInsightsKMSKeyId: String
+      # PerformanceInsightsRetentionPeriod: Integer
+      Port: "3306"
+      PreferredBackupWindow: "00:00-00:30"
+      # PreferredMaintenanceWindow: String
+      # ProcessorFeatures:
+      #   - ProcessorFeature
+      # PromotionTier: Integer
+      PubliclyAccessible: true
+      # ReplicaMode: String
+      # RestoreTime: String
+      # SourceDBClusterIdentifier: String
+      # SourceDBInstanceAutomatedBackupsArn: String
+      # SourceDBInstanceIdentifier: String
+      # SourceDbiResourceId: String
+      # SourceRegion: String
+      # StorageEncrypted: Boolean
+      # StorageThroughput: Integer
+      StorageType: "gp2"
+      Tags:
+        - Key: "Name"
+          Value: "abner-mysql-db"
+      # Timezone: String
+      UseDefaultProcessorFeatures: true
+      # UseLatestRestorableTime: Boolean
+      # VPCSecurityGroups:
+      #   - String
